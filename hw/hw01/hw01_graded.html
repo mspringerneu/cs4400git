@@ -1,0 +1,146 @@
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"><title>Homework #1: Matthew Springer</title><style type="text/css"><!--
+.comment { font-weight: bold; background-color: #FFC0C0; }
+.grade { font-weight: bold; background-color: #FFFF60; border: solid thin red; }
+--></style></head><body bgcolor="white"><h1>Graded Homework #1 file for Matthew Springer (<tt>mspringer</tt>)</h1><span class="comment">Computed grade for this submission: <span class="grade">&nbsp;66/100&nbsp;</span></span><hr><pre><span class="comment">;;&gt; Student: mspringer (Matthew Springer &lt;springer.m@husky.neu.edu&gt;)</span>
+<span class="comment">;;&gt; Maximum points for this assignment: </span><span class="grade">&lt;+100&gt;</span>
+<span class="comment">;;&gt; Graded by Kaila Corrington</span>
+;;; Author - Matthew Springer
+;;; Date - 1/16/17
+
+;;; Academic integrity binding
+(define I-will-behave #t)
+
+<span class="comment">;;&gt; From now on, please define functions as:</span>
+<span class="comment">;;&gt; Contract</span>
+<span class="comment">;;&gt; Purpose Statement</span>
+<span class="comment">;;&gt; Function Definition</span>
+
+
+;;; This function determines if three integers are "near" each other, meaning
+;;; that the difference between the largest integer and the smallest integer
+;;; is no larger than 2.
+;;;
+;;; Near?: Integer Integer Integer -&gt; Boolean
+(define (near? a b c)
+  (if (&lt; (- (max a (max b c)) (min a (min b c))) 3) #t #f))
+<span class="comment">;;&gt; </span><span class="grade">&lt;-1&gt;</span><span class="comment"> don't capitalize Near in contract</span>
+<span class="comment">;;&gt; </span><span class="grade">&lt;-5&gt;</span><span class="comment"> `if' not needed, just return (&lt; ...) as a boolean value</span>
+
+;;; Test functions for near?
+(equal? (near? -7 -8 -6) #t)
+(equal? (near? -7 -9 -6) #f)
+(equal? (near? 0 -1 1) #t)
+(equal? (near? -2 1 0) #f)
+(equal? (near? 7 8 6) #t)
+(equal? (near? 7 5 8) #f)
+
+;;; This function consumes a list of symbols and returns how many of those
+;;; symbols are 'x'
+;;;
+;;; Count-xs: ListOfSymbol -&gt; Integer
+(define (count-xs l)
+  (cond [(list? l)
+         (cond [(empty? l) 0]
+               [(equal? (first l) 'x) (+ 1 (count-xs (rest l)))]
+               [else (+ 0 (count-xs (rest l)))])]
+        [else 0]))
+<span class="comment">;;&gt; don't capitalize function name in contract</span>
+<span class="comment">;;&gt; use (Listof Symbol) in contract</span>
+<span class="comment">;;&gt; </span><span class="grade">&lt;-3&gt;</span><span class="comment"> Given that contract states the function takes a list, checking that</span>
+<span class="comment">;;&gt; it's a list is unnecessary</span>
+<span class="comment">;;&gt; </span><span class="grade">&lt;-5&gt;</span><span class="comment"> Don't use nested conds. In fact, this entire function should be</span>
+<span class="comment">;;&gt; defined as what you have inside the second cond. The outer cond is</span>
+<span class="comment">;;&gt; unnecessary.</span>
+
+;;; Test functions for count-xs
+(define list1 (list 'x 'y 's 'x 'h 'j 'x))
+(define list2 (list 'x 'y 'a 'b 'x 'w 'k))
+(define list3 (list 'r 'q 'v 'b 'e 'j 'b))
+(equal? (count-xs list1) 3)
+(equal? (count-xs list2) 2)
+(equal? (count-xs list3) 0)
+(equal? (count-xs null) 0)
+(equal? (count-xs 6) 0)
+<span class="comment">;;&gt; Note: the last test case is invalid, because the function only accepts</span>
+<span class="comment">;;&gt; lists</span>
+
+;;; This function consumes a list of numbers and returns true if the list
+;;; is sorted in ascending order (lowest -&gt; highest), and false otherwise
+;;;
+;;; Ascending?: ListOfNumber -&gt; Boolean
+(define (ascending? l)
+  (cond [(list? l)
+         (cond [(empty? l) #t]
+               [(empty? (rest l)) #t]
+               [(&lt;= (first l) (first (rest l))) (and #t (ascending? (rest l)))]
+               [else #f])]
+        [else #f]))
+<span class="comment">;;&gt; don't capitalize function name in contract</span>
+<span class="comment">;;&gt; use (Listof Number) in contract</span>
+<span class="comment">;;&gt; Given that contract states the function takes a list, checking that it's a</span>
+<span class="comment">;;&gt; list is unnecessary</span>
+<span class="comment">;;&gt; </span><span class="grade">&lt;-5&gt;</span><span class="comment"> `cond' not needed. just use (or (...) (...) (and (...) (...)))</span>
+<span class="comment">;;&gt; </span><span class="grade">&lt;-3&gt;</span><span class="comment"> never use a boolean literal as an argument to a logical function like</span>
+<span class="comment">;;&gt; `and'</span>
+<span class="comment">;;&gt; use (second l) or (cadr l) instead of (first (rest l))</span>
+
+;;; Test functions for ascending?
+(define list4 (list 1 2 3 4 5 6 7))
+(define list5 (list -2 -1 0 1 2 3 4))
+(define list6 (list 4 7 2 6 3 9 6))
+(equal? (ascending? list4) #t)
+(equal? (ascending? list5) #t)
+(equal? (ascending? list6) #f)
+(equal? (ascending? null) #t)
+(equal? (ascending? 6) #f)
+<span class="comment">;;&gt; </span><span class="grade">&lt;-2&gt;</span><span class="comment"> you should have a test case where there are adjacent equal values</span>
+
+;;; This function consumes two lists (x and y) of equal length (n) and returns
+;;; a list of tuples in the form (x1 y1), (x2 y2), ... , (xn yn)
+;;; Zip2: ListOfX ListofY -&gt; ListOf(ListOfTuple-XY)
+(define (zip2 list1 list2)
+  (cond [(empty? list1) null]
+        [else (cons (list (first list1) (first list2))
+                    (zip2 (rest list1) (rest list2)))]))
+<span class="comment">;;&gt; don't capitalize function name in contract</span>
+<span class="comment">;;&gt; </span><span class="grade">&lt;-5&gt;</span><span class="comment"> contract should be (Listof X) (Listof Y) -&gt; (Listof (List X Y))</span>
+<span class="comment">;;&gt; </span><span class="grade">&lt;-5&gt;</span><span class="comment"> use `if' instead of a `cond' with one condition</span>
+
+;;; Test functions for zip2
+(define list7 (list (list 'x 1)
+                    (list 'y 2)
+                    (list 's 3)
+                    (list 'x 4)
+                    (list 'h 5)
+                    (list 'j 6)
+                    (list 'x 7)))
+(define list8 (list (list 'x -2)
+                    (list 'y -1)
+                    (list 's 0)
+                    (list 'x 1)
+                    (list 'h 2)
+                    (list 'j 3)
+                    (list 'x 4)))
+(define list9 (list (list 'x 4)
+                    (list 'y 7)
+                    (list 's 2)
+                    (list 'x 6)
+                    (list 'h 3)
+                    (list 'j 9)
+                    (list 'x 6)))
+(equal? (zip2 list1 list4) list7)
+(equal? (zip2 list1 list5) list8)
+(equal? (zip2 list1 list6) list9)
+(equal? (zip2 null null) null)
+
+;;; Binds to the photo number with my picture in it.
+(define my-picture 46)
+
+;;; Binds to a list of other photo numbers with my picture in it (none)
+(define my-other-pictures null)
+
+;;; Binds to the numbers of minutes I spent on this assignment
+(define minutes-spent 120)
+
+</pre></body></html>
