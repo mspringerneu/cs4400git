@@ -1,0 +1,325 @@
+<html><head><title>Homework #4: Daniel Hennessy &amp; Matthew Springer</title><style type="text/css"><!--
+.comment { font-weight: bold; background-color: #FFC0C0; }
+.grade { font-weight: bold; background-color: #FFFF60; border: solid thin red; }
+--></style></head><body bgcolor="white"><h1>Graded Homework #4 file for Daniel Hennessy &amp; Matthew Springer (<tt>abc+mspringer</tt>)</h1><span class="comment">Computed grade for this submission: <span class="grade">&nbsp;89/100&nbsp;</span></span><hr /><pre><span class="comment">;;&gt; Student: abc (Daniel Hennessy &lt;hennessy.da@husky.neu.edu&gt;)</span>
+<span class="comment">;;&gt; Student: mspringer (Matthew Springer &lt;springer.m@husky.neu.edu&gt;)</span>
+<span class="comment">;;&gt; Maximum points for this assignment: </span><span class="grade">&lt;+100&gt;</span>
+<span class="comment">;;&gt; Graded by: Daniel Moran</span>
+#lang pl 04
+
+(define minutes-spent 150)
+
+#| BNF for the ALGAE language:
+     &lt;ALGAE&gt; ::= &lt;num&gt;
+               | { +   &lt;ALGAE&gt; ... }
+               | { *   &lt;ALGAE&gt; ... }
+               | { -   &lt;ALGAE&gt; &lt;ALGAE&gt; ... }
+               | { /   &lt;ALGAE&gt; &lt;ALGAE&gt; ... }
+               | { with { &lt;id&gt; &lt;ALGAE&gt; } &lt;ALGAE&gt; }
+               | &lt;id&gt;
+               | { &lt;   &lt;ALGAE&gt; &lt;ALGAE&gt; }
+               | { =   &lt;ALGAE&gt; &lt;ALGAE&gt; }
+               | { &lt;=  &lt;ALGAE&gt; &lt;ALGAE&gt; }
+               | True
+               | False
+               | { if  &lt;ALGAE&gt; &lt;ALGAE&gt; &lt;ALGAE&gt; }
+               | { not &lt;ALGAE&gt; }
+               | { and &lt;ALGAE&gt; &lt;ALGAE&gt; }
+               | { or  &lt;ALGAE&gt; &lt;ALGAE&gt; }
+|#
+
+;; ALGAE abstract syntax trees
+(define-type ALGAE
+  [Num    Number]
+  [Add    (Listof ALGAE)]
+  [Mul    (Listof ALGAE)]
+  [Sub    ALGAE (Listof ALGAE)]
+  [Div    ALGAE (Listof ALGAE)]
+  [Id     Symbol]
+  [With   Symbol ALGAE ALGAE]
+  [Less   ALGAE ALGAE]
+  [Equal  ALGAE ALGAE]
+  [LessEq ALGAE ALGAE]
+  [Bool   Boolean]
+  [If     ALGAE ALGAE ALGAE])
+
+(: parse-sexpr : Sexpr -&gt; ALGAE)
+;; parses s-expressions into ALGAEs
+(define (parse-sexpr sexpr)
+  ;; utility for parsing a list of expressions
+  (: parse-sexprs : (Listof Sexpr) -&gt; (Listof ALGAE))
+  (define (parse-sexprs sexprs) (map parse-sexpr sexprs))
+  (match sexpr
+    <span class="comment">;;&gt; Style: way too many spaces for no apparent reason </span><span class="grade">&lt;-1&gt;</span>
+    ['True                  (Bool #t)]
+    ['False                 (Bool #f)]
+    [(number: n)    (Num n)]
+    [(symbol: name) (Id name)]
+    [(cons 'with more)
+     (match sexpr
+       [(list 'with (list (symbol: name) named) body)
+        (With name (parse-sexpr named) (parse-sexpr body))]
+       [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]
+    [(list '+ args ...)     (Add (parse-sexprs args))]
+    [(list '* args ...)     (Mul (parse-sexprs args))]
+    [(list '- fst args ...) (Sub (parse-sexpr fst) (parse-sexprs args))]
+    [(list '/ fst args ...) (Div (parse-sexpr fst) (parse-sexprs args))]
+    [(list '&lt;  left right)  (Less   (parse-sexpr left) (parse-sexpr right))]
+    [(list '=  left right)  (Equal  (parse-sexpr left) (parse-sexpr right))]
+    [(list '&lt;= left right)  (LessEq (parse-sexpr left) (parse-sexpr right))]
+    [(list 'if cond then else)
+     (If (parse-sexpr cond) (parse-sexpr then) (parse-sexpr else))]
+    [(list 'not arg)        (Not (parse-sexpr arg))]
+    [(list 'and left right) (And (parse-sexpr left) (parse-sexpr right))]
+    [(list 'or  left right) (Or  (parse-sexpr left) (parse-sexpr right))]
+    [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
+
+(: parse : String -&gt; ALGAE)
+;; parses a string containing an ALGAE expression to an ALGAE AST
+(define (parse str)
+  (parse-sexpr (string-&gt;sexpr str)))
+
+(: Not : ALGAE -&gt; ALGAE)
+;; converts {not expr} to ALGAE
+(define (Not expr)
+  (If expr (Bool #f) (Bool #t)))
+
+(: And : ALGAE ALGAE -&gt; ALGAE)
+;; converts `{and e1 e2}' to ALGAE
+(define (And e1 e2)
+  (If e1 e2 (Bool #f)))
+
+(: Or  : ALGAE ALGAE -&gt; ALGAE)
+;; converts `{or e1 e2}' to ALGAE
+(define (Or e1 e2)
+  (If e1 (Bool #t) e2))
+
+#| Formal specs for `subst':
+   (`N' is a &lt;num&gt;, `E1', `E2' are &lt;ALGAE&gt;s, `x' is some &lt;id&gt;, `y' is a
+   *different* &lt;id&gt;, `B' is a True/False )
+      N[v/x]                = N
+      {+ E ...}[v/x]        = {+ E[v/x] ...}
+      {* E ...}[v/x]        = {* E[v/x] ...}
+      {- E1 E ...}[v/x]     = {- E1[v/x] E[v/x] ...}
+      {/ E1 E ...}[v/x]     = {/ E1[v/x] E[v/x] ...}
+      y[v/x]                = y
+      x[v/x]                = v
+      {with {y E1} E2}[v/x] = {with {y E1[v/x]} E2[v/x]}
+      {with {x E1} E2}[v/x] = {with {x E1[v/x]} E2}
+      {&lt;  E1 E2}[v/x]       = {&lt;  E1[v/x] E2[v/x]}
+      {=  E1 E2}[v/x]       = {=  E1[v/x] E2[v/x]}
+      {&lt;= E1 E2}[v/x]       = {&lt;= E1[v/x] E2[v/x]}
+      B[v/x]                = B
+      {if  E1 E2 E3}[v/x]   = {if  E1[v/x] E2[v/x] E3[v/x]}
+|#
+
+(: subst : ALGAE Symbol ALGAE -&gt; ALGAE)
+;; substitutes the second argument with the third argument in the
+;; first argument, as per the rules of substitution; the resulting
+;; expression contains no free instances of the second argument
+(define (subst expr from to)
+  ;; convenient helper -- no need to specify `from' and `to'
+  (: subst* : ALGAE -&gt; ALGAE)
+  (define (subst* x) (subst x from to))
+  ;; helper to substitute lists
+  (: substs* : (Listof ALGAE) -&gt; (Listof ALGAE))
+  (define (substs* exprs) (map subst* exprs))
+  (cases expr
+    [(Num n)        expr]
+    [(Bool b)       expr]
+    [(Add args)     (Add (substs* args))]
+    [(Mul args)     (Mul (substs* args))]
+    [(Sub fst args) (Sub (subst* fst) (substs* args))]
+    [(Div fst args) (Div (subst* fst) (substs* args))]
+    [(Id name)      (if (eq? name from) to expr)]
+    [(With bound-id named-expr bound-body)
+     (With bound-id
+           (subst* named-expr)
+           (if (eq? bound-id from)
+             bound-body
+             (subst* bound-body)))]
+    [(Less   left right) (Less (subst* left) (subst* right))]
+    [(Equal  left right) (Equal (subst* left) (subst* right))]
+    [(LessEq left right) (LessEq (subst* left) (subst* right))]
+    [(If cond then else) (If (subst* cond) (subst* then) (subst* else))]))
+
+#| Formal specs for `eval':
+     eval(N)            = N
+     eval({+ E ...})    = evalN(E) + ...
+     eval({* E ...})    = evalN(E) * ...
+     eval({- E})        = -evalN(E)
+     eval({/ E})        = 1/evalN(E)
+     eval({- E1 E ...}) = evalN(E1) - (evalN(E) + ...)
+     eval({/ E1 E ...}) = evalN(E1) / (evalN(E) * ...)
+     eval(id)           = error!
+     eval({with {x E1} E2}) = eval(E2[eval(E1)/x])
+     evalN(E)           = eval(E) if it is a number, error otherwise
+     eval({&lt; E1 E2})    = evalN(E1) &lt; evalN(E2)
+     eval({= E1 E2})    = evalN(E1) = evalN(E2)
+     eval({&lt;= E1 E2})   = evalN(E1) &lt;= evalN(E2)
+     eval(B)            = B
+     evalB(E)           = eval(E) if it is a boolean, error otherwise
+     eval(if E1 E2 E3)  = if evalB(E1) is true,  eval(E2)
+                          else                   eval(E3)
+     <span class="comment">;;&gt; For `not', `and', and `or', you were told to write the eval</span>
+     <span class="comment">;;&gt; rules to reflect the syntactic transformation into an `if' that</span>
+     <span class="comment">;;&gt; you perform, i.e.</span>
+     <span class="comment">;;&gt;   eval({not E}) = eval({if E False True})</span>
+     <span class="comment">;;&gt; which was given </span><span class="grade">&lt;-1&gt;</span>
+     eval(not E1)       = if evalB(E1) is true,  false
+                          else                   true
+     eval(and E1 E2)    = if evalB(E1) is true,  evalB(E2) <span class="comment">;&gt; This isn't exactly true, E2</span>
+                          else                   false     <span class="comment">;&gt; doesn't need to be a Bool </span><span class="grade">&lt;-1&gt;</span>
+     eval(or  E1 E2)    = if evalB(E1) is true,  true
+                          else                   evalB(E2) <span class="comment">;&gt; Same here </span><span class="grade">&lt;-1&gt;</span>
+|#
+
+(: eval-number : ALGAE -&gt; Number)
+;; helper for `eval': verifies that the result is a number
+(define (eval-number expr)
+  (let ([result (eval expr)])
+    (if (number? result)
+      result
+      (error 'eval-number "need a number when evaluating ~s, but got ~s"
+             expr result))))
+
+(: eval-boolean : ALGAE -&gt; Boolean)
+;; helper for `eval': verifies that the result is a boolean
+(define (eval-boolean expr)
+  (let ([result (eval expr)])
+    (if (boolean? result)
+      result
+      (error 'eval-number "need a boolean when evaluating ~s, but got ~s"
+             expr result))))
+
+(: value-&gt;algae : (U Number Boolean) -&gt; ALGAE)
+;; converts a value to an ALGAE value (so it can be used with `subst')
+(define (value-&gt;algae val)
+  (cond [(number? val) (Num val)]
+        [(boolean? val) (Bool val)]
+        ;; Note: a `cond' doesn't make much sense now, but it will when
+        ;; we extend the language with booleans.  Also, since we use
+        ;; Typed Racket, the type checker makes sure that this function
+        ;; is never called with something that is not in its type, so
+        ;; there's no need for an `else' branch like
+        ;;     [else (error 'value-&gt;algae "unexpected value: ~s" val)]
+        ;; (Strictly speaking, there's no need for the last predicate
+        ;; (which is the only one here until you extend this), but it's
+        ;; left in for clarity.)
+        ))
+
+(: eval : ALGAE -&gt; (U Number Boolean))
+;; evaluates ALGAE expressions by reducing them to numbers
+(define (eval expr)
+  (cases expr
+    [(Num  n) n]
+    [(Bool b) b]
+    [(Add argus) (foldl + 0 (map eval-number argus))]
+    [(Mul argus) (foldl * 1 (map eval-number argus))]
+    [(Sub fst rest)
+     (let ([num (eval-number fst)])
+       (if (null? rest) (- num) (- num (foldl + 0 (map eval-number rest)))))]
+    [(Div fst rest)
+     (let ([num (eval-number fst)]
+           [denom (foldl * 1 (map eval-number rest))])
+       (cond
+         [(zero? (if (null? rest) num denom))
+          (error 'eval "division by zero")]
+         [(null? rest) (/ num)]
+         [else (/ num denom)]))]
+    [(With bound-id named-expr bound-body)
+     (eval (subst bound-body
+                  bound-id
+                  ;; see the above `value-&gt;algae' helper
+                  (value-&gt;algae (eval named-expr))))]
+    [(Id name) (error 'eval "free identifier: ~s" name)]
+    [(Less   left right) (&lt; (eval-number left) (eval-number right))]
+    [(Equal  left right) (= (eval-number left) (eval-number right))]
+    [(LessEq left right) (&lt;= (eval-number left) (eval-number right))]
+    [(If cond then else) (eval (if (eval-boolean cond) then else))]))
+
+(: run : String -&gt; (U Number Boolean))
+;; evaluate an ALGAE program contained in a string
+(define (run str)
+  (eval (parse str)))
+
+;; easy tests
+(test (run "5") =&gt; 5)
+(test (run "{+ 5 5}") =&gt; 10)
+(test (run "{with {x {+ 5 5}} {+ x x}}") =&gt; 20)
+(test (run "{with {x 5} {+ x x}}") =&gt; 10)
+(test (run "{with {x {+ 5 5}} {with {y {- x 3}} {+ y y}}}") =&gt; 14)
+(test (run "{with {x 5} {with {y {- x 3}} {+ y y}}}") =&gt; 4)
+(test (run "{with {x 5} {+ x {with {x 3} 10}}}") =&gt; 15)
+(test (run "{with {x 5} {+ x {with {x 3} x}}}") =&gt; 8)
+(test (run "{with {x 5} {+ x {with {y 3} x}}}") =&gt; 10)
+(test (run "{with {x 5} {with {y x} y}}") =&gt; 5)
+(test (run "{with {x 5} {with {x x} x}}") =&gt; 5)
+;; more
+(test (run "slkdjf") =error&gt; "eval: free identifier: slkdjf")
+(test (run "{/}")    =error&gt; "bad syntax in (/)")
+(test (run "{hello}")  =error&gt; "bad syntax in (hello)")
+(test (run "{if 1 2 3}")
+      =error&gt; "eval-number: need a boolean when evaluating")
+(test (run "{if False False 6}") =&gt; 6)
+(test (run "{+ {&lt;= 144 5}}")
+      =error&gt; "eval-number: need a number when evaluating")
+
+;; arithmetic testing
+<span class="comment">;;&gt; Missing tests for "{+}" and "{*}" </span><span class="grade">&lt;-2&gt;</span>
+(test (run "{- 3}") =&gt; -3)
+(test (run "{with {x 4} {- x}}") =&gt; -4)
+(test (run "{with {x 4} {* x x x}}") =&gt; 64)
+(test (run "{with 7}") =error&gt; "bad `with' syntax in (with 7)")
+(test (run "{/ 100 2 5 2}") =&gt; 5)
+(test (run "{with {x 2} {/ 100 x 5 x}}") =&gt; 5)
+(test (run "{with {x 0} {/ 100 x 5 x}}") =error&gt; "division by zero")
+(test (run "{with {x 0} {/ x}}") =error&gt; "division by zero")
+(test (run "{with {x 4} {/ x}}") =&gt; (/ 4))
+
+;; boolean expression testing
+<span class="comment">;;&gt; Missing tests of short-circuiting behavior for `and' and `or' </span><span class="grade">&lt;-5&gt;</span>
+<span class="comment">;;&gt; i.e. "{and False {/ 0}}"</span>
+<span class="comment">;;&gt; i.e. "{or True {/ 0}}"</span>
+(test (run "True"))
+(test (not (run "False")))
+(test (run "{with {x True} {and x x}}"))
+(test (not (run "{with {x False} {and x True}}")))
+(test (run "{&lt; 3 4}"))
+(test (not (run "{&lt; 3 3}")))
+(test (not (run "{&lt; 4 3}")))
+(test (run "{with {x 3} {with {y 4} {&lt; x y}}}"))
+(test (not (run "{with {x 3} {with {y 3} {&lt; x y}}}")))
+(test (not (run "{with {x 4} {with {y 3} {&lt; x y}}}")))
+(test (not (run "{= 3 4}")))
+(test (run "{= 3 3}"))
+(test (not (run "{= 4 3}")))
+(test (not (run "{with {x 3} {with {y 4} {= x y}}}")))
+(test (run "{with {x 3} {with {y 3} {= x y}}}"))
+(test (not (run "{with {x 4} {with {y 3} {= x y}}}")))
+(test (run "{&lt;= 3 4}"))
+(test (run "{&lt;= 3 3}"))
+(test (not (run "{&lt;= 4 3}")))
+(test (run "{with {x 3} {with {y 4} {&lt;= x y}}}"))
+(test (run "{with {x 3} {with {y 3} {&lt;= x y}}}"))
+(test (not (run "{with {x 4} {with {y 3} {&lt;= x y}}}")))
+(test (not (run "{not {&lt;= 3 4}}")))
+(test (not (run "{not {&lt;= 3 3}}")))
+(test (run "{not {&lt;= 4 3}}"))
+(test (not (run "{not {with {x 3} {with {y 4} {&lt; x y}}}}")))
+(test (run "{not {with {x 3} {with {y 3} {&lt; x y}}}}"))
+(test (run "{not {with {x 4} {with {y 3} {&lt; x y}}}}"))
+(test (run "{and {= 5 5} {&lt;= 3 4}}"))
+(test (not (run "{and {= 4 5} {&lt;= 3 4}}")))
+(test (not (run "{and {= 5 5} {&lt;= 4 3}}")))
+(test (run "{or {= 5 5} {&lt;= 3 4}}"))
+(test (run "{or {= 5 5} {&lt;= 4 3}}"))
+(test (run "{or {= 4 5} {&lt;= 3 4}}"))
+(test (not (run "{or {= 4 5} {&lt;= 4 3}}")))
+
+
+
+
+
+
+</pre></body></html>
